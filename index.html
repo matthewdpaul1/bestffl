@@ -2590,18 +2590,19 @@ function renderMatchups26() {
   function buildTokens(g, side, view) {
     const X = side === 'home' ? homeX : awayX;
     const t = [];
-    // Interior offensive line — D/ST at center, K + TE tight to each side.
-    // Squished (~13% vertical) so the trio reads as a real O-line unit.
-    t.push(fieldToken(g.K[0],   view, 'K',    side, X(3), 37));
-    t.push(fieldToken(g.DST[0], view, 'D/ST', side, X(3), 50));
-    t.push(fieldToken(g.TE[0],  view, 'TE',   side, X(3), 63));
+    // Interior offensive line — D/ST at center, K + TE tight to each side,
+    // pushed up onto the LOS so the trio sits ahead of the outside WRs.
+    t.push(fieldToken(g.K[0],   view, 'K',    side, X(0), 37));
+    t.push(fieldToken(g.DST[0], view, 'D/ST', side, X(0), 50));
+    t.push(fieldToken(g.TE[0],  view, 'TE',   side, X(0), 63));
 
-    // Receiver spread — outside WRs pushed to the sidelines, slot WR + FLEX
-    // pulled off the line for a true 4-wide look.
-    t.push(fieldToken(g.WR[0],  view, 'WR',   side, X(1),  4));   // outside top
-    t.push(fieldToken(g.WR[1],  view, 'WR',   side, X(7), 20));   // slot top
-    t.push(fieldToken(g.FLEX[0], view, 'FLEX', side, X(7), 80));  // slot bottom
-    t.push(fieldToken(g.WR[2],  view, 'WR',   side, X(1), 96));   // outside bottom
+    // Receiver spread — outside WRs pulled in from the sideline so the
+    // score badge isn't clipped by the endzone edge; slot WR + FLEX sit
+    // close to the outside WR for a paired-receiver look.
+    t.push(fieldToken(g.WR[0],  view, 'WR',   side, X(3),  9));   // outside top
+    t.push(fieldToken(g.WR[1],  view, 'WR',   side, X(7), 22));   // slot top
+    t.push(fieldToken(g.FLEX[0], view, 'FLEX', side, X(7), 78));  // slot bottom
+    t.push(fieldToken(g.WR[2],  view, 'WR',   side, X(3), 91));   // outside bottom
 
     // QB in shotgun, ~7 yards behind LOS on the midline
     t.push(fieldToken(g.QB[0],  view, 'QB',   side, X(10), 50));
