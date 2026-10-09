@@ -4701,6 +4701,7 @@ function closePlayerStats() {
   document.getElementById('mp-modal').classList.remove('open');
 }
 
+let MP_VIEW_MANUAL = null;   // Points/Projected chosen by the user this session
 function renderMatchups26() {
   DIRTY.delete('matchups26');
   requestAnimationFrame(centerPitches);
@@ -4727,6 +4728,7 @@ function renderMatchups26() {
       t.addEventListener('click', () => {
         document.querySelectorAll('#mp-view .mp-view-tab').forEach(x => x.classList.remove('active'));
         t.classList.add('active');
+        MP_VIEW_MANUAL = t.dataset.view;
         renderMatchups26();
       });
     });
@@ -4736,13 +4738,14 @@ function renderMatchups26() {
   if (!wkData) { host.innerHTML = ''; return; }
   // Upcoming / in-progress week: projections only (actual points were
   // stripped at pull time), so force the Projected view.
-  const upcoming = wkData.status === 'upcoming';
+  const upcoming = wkData.status === 'upcoming' || wkData.status === 'in_progress';
   document.querySelectorAll('#mp-view .mp-view-tab').forEach(t => {
     t.style.opacity = (upcoming && t.dataset.view === 'points') ? '0.35' : '';
     t.style.pointerEvents = (upcoming && t.dataset.view === 'points') ? 'none' : '';
   });
-  if (upcoming) document.querySelectorAll('#mp-view .mp-view-tab').forEach(t => t.classList.toggle('active', t.dataset.view === 'projected'));
-  const view = upcoming ? 'projected' : document.querySelector('#mp-view .mp-view-tab.active').dataset.view;
+  // Default: Projected for upcoming / in-progress weeks, Points for completed ones, unless the user picked a view.
+  const view = upcoming ? 'projected' : (MP_VIEW_MANUAL || 'points');
+  document.querySelectorAll('#mp-view .mp-view-tab').forEach(t => t.classList.toggle('active', t.dataset.view === view));
   const winProb = {};
   ((A.odds || {}).games || []).filter(g => g.week === wk).forEach(g => {
     winProb[g.home_team_id + '-' + g.away_team_id] = g.p_home;
