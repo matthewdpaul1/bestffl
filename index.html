@@ -1362,7 +1362,7 @@ html, body { max-width: 100%; }
   <div class="page" id="page-manager">
     <div class="mgr-hero" id="mgr-hero">
       <div class="mh-mark" id="mh-mark" aria-hidden="true"></div>
-      <img class="mh-logo" id="mh-logo" alt="">
+      <img class="mh-logo" id="mh-logo" alt="" decoding="async">
       <div class="mh-text"><div class="mh-name" id="mh-name"></div><div class="mh-sub" id="mh-sub"></div>
         <div class="mh-pick"><select id="mgr-pick" aria-label="Manager"></select></div></div>
     </div>
@@ -1838,7 +1838,8 @@ function toggleTheme() {
   document.documentElement.dataset.theme = t;
   try { localStorage.setItem('hwTheme', t); } catch (e) {}
   syncThemeBtn();
-  renderAll();
+  PLOT_SYNC = true;
+  try { renderAll(); } finally { PLOT_SYNC = false; }
   document.querySelectorAll('.page.active .js-plotly-plot').forEach(el => { try { window.Plotly && Plotly.Plots.resize(el); } catch (e) {} });
 }
 document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
@@ -1855,15 +1856,46 @@ syncThemeBtn();
 const IS_MOBILE = () => window.matchMedia('(max-width: 768px)').matches;
 const PLOT_QUEUE = [];
 function plotlyReady() { return !!(window.Plotly && window.Plotly.newPlot); }
+// Charts are created the first time their container nears the viewport (never while the tab's
+// first frame is being built); PLOT_SYNC forces an in-place redraw (theme toggle).
+let PLOT_SYNC = false;
+const PLOT_PENDING = new Map();
+const PLOT_IO = window.IntersectionObserver ? new IntersectionObserver(ents => ents.forEach(e => {
+  if (!e.isIntersecting) return;
+  PLOT_IO.unobserve(e.target);
+  const args = PLOT_PENDING.get(e.target); PLOT_PENDING.delete(e.target);
+  if (args && e.target.isConnected) newPlot(...args);
+}), {rootMargin: '300px 0px'}) : null;
 function newPlot(el, data, layout = {}, config = {}) {
+  const node = typeof el === 'string' ? document.getElementById(el) : el;
+  if (PLOT_IO && node && !PLOT_SYNC && !PLOT_PENDING.has(node) && !node._plotSeen) {
+    node._plotSeen = true; PLOT_PENDING.set(node, [node, data, layout, config]); PLOT_IO.observe(node); return;
+  }
+  if (PLOT_PENDING.has(node)) { PLOT_PENDING.set(node, [node, data, layout, config]); return; }
   if (!plotlyReady()) { PLOT_QUEUE.push([el, data, layout, config]); return; }
   return _plotNow(el, data, layout, config);
 }
 (function () {
   const tag = document.getElementById('plotly-js');
   const flush = () => { while (PLOT_QUEUE.length) _plotNow(...PLOT_QUEUE.shift()); };
-  if (plotlyReady()) return;
-  tag.addEventListener('load', flush);
+  // Plotly's one-time first-plot setup runs on an offscreen throwaway chart during idle time,
+  // so the first real chart a tab opens doesn't pay for it.
+  const warm = () => (window.requestIdleCallback || setTimeout)(() => {
+    if (!plotlyReady() || document.querySelector('.js-plotly-plot')) return;
+    const d = document.createElement('div');
+    d.style.cssText = 'position:absolute; left:-10000px; top:0; width:600px; height:300px; visibility:hidden;';
+    document.body.appendChild(d);
+    const done = () => { try { Plotly.purge(d); } catch (e) {} d.remove(); };
+    try {
+      Plotly.newPlot(d, [{x: [1, 2, 3], y: [3, 1, 2], type: 'scatter', mode: 'lines+markers+text', text: ['3', '1', '2'], name: 'QB'},
+        {x: [1, 2, 3], y: [1, 2, 3], type: 'scatter', mode: 'lines+markers', name: 'RB'}],
+        {...plotLayout(), xaxis: {title: 'Round', dtick: 1}, yaxis: {title: 'Points'}, legend: {orientation: 'h', y: -0.2}},
+        {displayModeBar: false}).then(done, done);
+    } catch (e) { done(); }
+  });
+  const ready = () => { flush(); if (document.readyState === 'complete') warm(); else window.addEventListener('load', warm, {once: true}); };
+  if (plotlyReady()) { ready(); return; }
+  tag.addEventListener('load', ready);
 })();
 function _plotNow(el, data, layout = {}, config = {}) {
   const L = {...layout, autosize: true};
@@ -2047,7 +2079,9 @@ function enhanceTable(tbl) {
   if (tbl._sort) { sortTable(tbl); paintSortHeaders(tbl); }
   applyTopN(tbl);
 }
-const ENH = new MutationObserver(muts => {
+// Also flushed synchronously right after a tab renders, so its tables are enhanced (top-N rows
+// hidden, sort applied) before anything forces the tab's first layout.
+function enhanceMutations(muts) {
   const set = new Set();
   muts.forEach(m => {
     const t = m.target.closest ? m.target.closest('table') : null;
@@ -2060,7 +2094,8 @@ const ENH = new MutationObserver(muts => {
   });
   set.forEach(enhanceTable);
   ENH.takeRecords();
-});
+}
+const ENH = new MutationObserver(enhanceMutations);
 ENH.observe(document.body, {childList: true, subtree: true});
 
 
@@ -2098,8 +2133,10 @@ function roundHalfUp(x, d) {
   if (a < 1e-9) return 0;
   return Math.sign(x) * Number(Math.round(Number(a + 'e' + d)) + 'e-' + d);
 }
+// One cached formatter per precision (toLocaleString with options builds a new one per call).
+const _NF = {};
 const fmtFixed = (x, d) => (x == null || x === '' || isNaN(x)) ? '—'
-  : roundHalfUp(x, d).toLocaleString(undefined, {minimumFractionDigits: d, maximumFractionDigits: d});
+  : (_NF[d] || (_NF[d] = new Intl.NumberFormat(undefined, {minimumFractionDigits: d, maximumFractionDigits: d}))).format(roundHalfUp(x, d));
 const fmtTotalText = v => fmtFixed(v, 0);
 const fmtTotal = v => (v == null || isNaN(v)) ? '—' : `<span data-raw="${Number(v)}">${fmtTotalText(v)}</span>`;
 const fmtWeek = v => fmtFixed(v, 2);
@@ -4327,7 +4364,9 @@ function renderDraft26() {
     html += '</tr>';
   }
   html += '</thead><tbody>';
+  const FIRST_ROUNDS = 6; let firstHtml = null;  // rounds painted up front; the rest follow the first frame
   for (let r = 1; r <= rounds; r++) {
+    if (r === FIRST_ROUNDS + 1) { firstHtml = html; html = ''; }
     html += `<tr><td style="background:var(--surface); padding:5px; text-align:center; color:var(--muted); font-size:11px; font-weight:600;">R${r}</td>`;
     slotOrder.forEach(s => {
       const pick = bySlotRound[s.slot + '-' + r];
@@ -4345,7 +4384,10 @@ function renderDraft26() {
     });
     html += '</tr>';
   }
+  let restRows = '';
+  if (firstHtml !== null) { restRows = html; html = firstHtml; }
   html += '</tbody></table></div></div>';
+  const boardEnd = html.length;
   if (early) {
     const rows = Object.values(earlyMgr).sort((a,b)=>b.pct_over_expected-a.pct_over_expected);
     html += `<div class="card"><h2>2026 Draft Grade by Manager <span class="pill po" style="margin-left:6px;">${early.label}</span></h2>
@@ -4367,8 +4409,16 @@ function renderDraft26() {
       <h3 style="margin-top:14px;">Worst</h3><div class="scroll-x"><table data-topn="10"><thead>${hd}</thead><tbody>${early.worst.map(pr).join('')}</tbody></table></div>
     </div>`;
   }
-  picksHost.innerHTML = html;
+  const rest = html.slice(boardEnd);
+  picksHost.innerHTML = html.slice(0, boardEnd);
   requestAnimationFrame(() => pinDraftGradeRow(picksHost));
+  const token = picksHost._renderToken = {};
+  if (restRows || rest) afterPaint(() => {
+    if (picksHost._renderToken !== token) return;
+    if (restRows) picksHost.querySelector('table.board tbody').insertAdjacentHTML('beforeend', restRows);
+    if (rest) picksHost.insertAdjacentHTML('beforeend', rest);
+    requestAnimationFrame(() => pinDraftGradeRow(picksHost));
+  });
 }
 
 
@@ -4903,8 +4953,12 @@ function ensureRendered(page) {
   if (!DIRTY.has(page)) return;
   DIRTY.delete(page);
   TAB_RENDER[page]();
+  enhanceMutations(ENH.takeRecords());
 }
-const idle = fn => (window.requestIdleCallback ? requestIdleCallback(fn, {timeout: 400}) : setTimeout(fn, 30));
+// Deferred work waits for the tab's first frame to paint, then runs when the main thread is idle.
+const afterPaint = fn => requestAnimationFrame(() => setTimeout(fn, 0));
+const idle = fn => requestAnimationFrame(() => setTimeout(() =>
+  (window.requestIdleCallback ? requestIdleCallback(fn, {timeout: 400}) : fn()), 0));
 function centerPitches() {
   document.querySelectorAll('.mp-scroll').forEach(sc => { if (sc.scrollWidth > sc.clientWidth) sc.scrollLeft = (sc.scrollWidth - sc.clientWidth) / 2; });
 }
