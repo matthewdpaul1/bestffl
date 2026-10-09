@@ -458,12 +458,14 @@ table.bx tr.bench td.sl, table.bx tr.bench td.pl, table.bx tr.bench td.pt { colo
 .mp-topbar .side.win .mgr, .mp-topbar .side.win .sc { color:#4ad07a; }
 
 /* ---------- The football field ---------- */
+.mp-scroll { container-type: inline-size; }
 .mp-field {
   position:relative;
-  /* Give tokens breathing room -- 100:60 is slightly taller than a real field
-     so 3 vertical rows of 78px cards never overlap. */
-  aspect-ratio: 100 / 60;
-  min-height:712px;
+  /* Height tracks the field width (100:52.5) with a floor so stacked rows
+     15% apart stay at least 94px apart; no aspect-ratio, so the floor never
+     widens the field past its container. */
+  height:628px;
+  height:max(628px, 52.5cqw);
   margin-top:14px;
   border-radius:8px;
   border:2px solid #ffffff33;
@@ -4778,24 +4780,24 @@ function renderMatchups26() {
     const t = [];
     // Interior offensive line — D/ST at center, K + TE tight to each side,
     // pushed up onto the LOS so the trio sits ahead of the outside WRs.
-    t.push(fieldToken(g.K[0],   view, 'K',    side, X(0), 37));
+    t.push(fieldToken(g.K[0],   view, 'K',    side, X(0), 35));
     t.push(fieldToken(g.DST[0], view, 'D/ST', side, X(0), 50));
-    t.push(fieldToken(g.TE[0],  view, 'TE',   side, X(0), 63));
+    t.push(fieldToken(g.TE[0],  view, 'TE',   side, X(0), 65));
 
     // Receiver spread — outside WRs pulled in from the sideline so the
     // score badge isn't clipped by the endzone edge; slot WR + FLEX sit
     // close to the outside WR for a paired-receiver look.
     t.push(fieldToken(g.WR[0],  view, 'WR',   side, X(3),  9));   // outside top
-    t.push(fieldToken(g.WR[1],  view, 'WR',   side, X(7), 22));   // slot top
-    t.push(fieldToken(g.FLEX[0], view, 'FLEX', side, X(7), 78));  // slot bottom
+    t.push(fieldToken(g.WR[1],  view, 'WR',   side, X(7.5), 24));   // slot top
+    t.push(fieldToken(g.FLEX[0], view, 'FLEX', side, X(7.5), 76));  // slot bottom
     t.push(fieldToken(g.WR[2],  view, 'WR',   side, X(3), 91));   // outside bottom
 
     // QB in shotgun, ~7 yards behind LOS on the midline
     t.push(fieldToken(g.QB[0],  view, 'QB',   side, X(10), 50));
 
     // Two RBs in the backfield, stacked behind the QB (I-form / offset-I)
-    t.push(fieldToken(g.RB[0],  view, 'RB',   side, X(14), 37));
-    t.push(fieldToken(g.RB[1],  view, 'RB',   side, X(14), 63));
+    t.push(fieldToken(g.RB[0],  view, 'RB',   side, X(15), 35));
+    t.push(fieldToken(g.RB[1],  view, 'RB',   side, X(15), 65));
 
     return t.join('');
   }
