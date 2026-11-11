@@ -1328,7 +1328,7 @@ html, body { max-width: 100%; }
             <th class="num">PO W-L-T</th><th class="num">PO %</th>
             <th class="num">Total W-L-T</th><th class="num">Total %</th>
             <th class="num" title="Points for per matchup (hover a cell for the total)">PF/G</th>
-            <th class="num" title="Points against per matchup (hover a cell for the total)">PA/G</th><th class="num" title="Lucky win: you won with a below-median score. Unlucky loss: you lost with an above-median score. Each one counts from 0.25 up to 1.00 depending on how far from the median you finished (winning as 9th of 10 = +1, losing as 2nd = −1). Regular season only.">Luck <span class="info">&#9432;</span></th><th class="num" title="Includes 2017-18 counts from ESPN; only trades with player detail are listed">Trades*</th>
+            <th class="num" title="Points against per matchup (hover a cell for the total)">PA/G</th><th class="num">Luck</th><th class="num" title="Includes 2017-18 counts from ESPN; only trades with player detail are listed">Trades*</th>
             <th class="num">Champ</th><th class="num">2nd</th><th class="num">3rd</th>
             <th class="num">PO Apps</th><th class="num">Last</th>
           </tr></thead>
@@ -1413,7 +1413,7 @@ html, body { max-width: 100%; }
         <table id="mgr-seasons" class="cardify" data-keycols="0,2,5,6,8,11" data-titlecol="0">
           <thead><tr><th>Year</th><th>Team Name</th><th>Finish</th>
             <th class="num">Reg W-L-T</th><th class="num">PO W-L-T</th><th class="num">Total W-L-T</th>
-            <th class="num">PF</th><th class="num">PA</th><th class="num" title="Lucky win: you won with a below-median score. Unlucky loss: you lost with an above-median score. Each one counts from 0.25 up to 1.00 depending on how far from the median you finished (winning as 9th of 10 = +1, losing as 2nd = −1). Regular season only.">Luck <span class="info">&#9432;</span></th><th class="num">Trades</th>
+            <th class="num">PF</th><th class="num">PA</th><th class="num">Luck</th><th class="num">Trades</th>
             <th>Draft</th><th>Trade</th><th>Start/Sit</th></tr></thead>
           <tbody></tbody>
         </table>
@@ -2246,23 +2246,22 @@ function orderStarters(starters) {
   return rows.sort((a, b) => rank(a) - rank(b) || (rank(a) !== 5 ? 0 : a.slot.localeCompare(b.slot)) || a.i - b.i)
     .map(r => ({p: r.p, slot: r.slot.replace(/\+$/, '')}));
 }
-// Luck score (analytics/luck.py): signed 2 decimals, green / red; hover = lucky-win / unlucky-loss counts.
-const LUCK_TIP = 'Lucky win: you won with a below-median score. Unlucky loss: you lost with an above-median score. Each one counts from 0.25 up to 1.00 depending on how far from the median you finished (winning as 9th of 10 = +1, losing as 2nd = −1). Regular season only.';
+// Luck score (analytics/luck.py): signed 2 decimals, green / red.
 function fmtLuck(v) {
   const n = Number(v) || 0, s = fmtFixed(Math.abs(n), 2);
   return n > 0.004 ? '+' + s : n < -0.004 ? '−' + s : '0.00';
 }
-function luckCell(v, lucky, unlucky) {
+function luckCell(v) {
   const n = Number(v) || 0, cls = n > 0.004 ? 'bwd-up' : n < -0.004 ? 'bwd-dn' : 'dim';
-  return `<td class="num" data-sort="${n}" title="${lucky || 0} lucky win${lucky === 1 ? '' : 's'} · ${unlucky || 0} unlucky loss${unlucky === 1 ? '' : 'es'}"><b class="${cls}">${fmtLuck(n)}</b></td>`;
+  return `<td class="num" data-sort="${n}"><b class="${cls}">${fmtLuck(n)}</b></td>`;
 }
 // One team-week of luck: signed value + Lucky / Unlucky pill; neutral weeks = dim 0.00. '' if no data.
 function weekLuck(year, teamId, week) {
   const e = (((A.luck_weeks || {})[year] || {})[teamId] || {})[week];
   if (!e) return '';
-  const [v, rank, n] = e, tip = `Scored #${rank} of ${n} this week`;
-  if (!v) return `<span class="dim" title="${tip}">0.00</span>`;
-  return `<span class="wk-luck" title="${tip}"><b class="${v > 0 ? 'bwd-up' : 'bwd-dn'}">${fmtLuck(v)}</b> <span class="pill ${v > 0 ? 'luck-up' : 'luck-dn'}">${v > 0 ? 'Lucky' : 'Unlucky'}</span></span>`;
+  const v = e[0];
+  if (!v) return '<span class="dim">0.00</span>';
+  return `<span class="wk-luck"><b class="${v > 0 ? 'bwd-up' : 'bwd-dn'}">${fmtLuck(v)}</b> <span class="pill ${v > 0 ? 'luck-up' : 'luck-dn'}">${v > 0 ? 'Lucky' : 'Unlucky'}</span></span>`;
 }
 // Live-data "updated" stamp (ISO with offset -> "Oct 12, 11:49 AM" in the viewer's locale).
 function fmtPulledAt(s) {
@@ -2301,7 +2300,7 @@ function renderOverview() {
       <td class="num heat" style="${heatStyle(r.total_pct, S.tot)}"><b>${fmtPct(r.total_pct)}</b></td>
       <td class="num heat" style="${heatStyle(r.total_ppm, S.ppg)}" title="${fmtTotalText(r.total_pf)} total PF in ${r.total_games} games">${fmtNum(r.total_ppm)}</td>
       <td class="num" title="${fmtTotalText(r.total_pa)} total PA in ${r.total_games} games (lower is better)">${r.total_games ? fmtWeek(papgOf(r)) : '—'}</td>
-      ${luckCell(r.luck, r.luck_lucky, r.luck_unlucky)}
+      ${luckCell(r.luck)}
       <td class="num">${r.trades}</td>
       <td class="num">${r.championships || 0}</td>
       <td class="num">${r.runner_ups || ''}</td>
@@ -2718,7 +2717,7 @@ function gameLog(year, oid) {
       <td class="num">${kind === 'reg' ? weekLuck(year, home ? m.home_team_id : m.away_team_id, m.week) : ''}</td>
       <td class="num">${recordStr(w, l, t)}</td><td class="spark"><div class="bar" style="width:${Math.round(100 * me / max)}%"></div></td></tr>${detail}`;
   }).join('');
-  return `<div class="scroll-x"><table class="glog no-sort"><thead><tr><th>Week</th><th>Opponent</th><th class="num">Pts</th><th class="num">Opp</th><th>Result</th><th class="num" title="${LUCK_TIP}">Luck <span class="info">&#9432;</span></th><th class="num">Record</th><th>Points</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  return `<div class="scroll-x"><table class="glog no-sort"><thead><tr><th>Week</th><th>Opponent</th><th class="num">Pts</th><th class="num">Opp</th><th>Result</th><th class="num">Luck</th><th class="num">Record</th><th>Points</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 // (year, team_id) -> primary manager, exactly as the standings resolve it (co-owners / departed owners)
@@ -3484,7 +3483,7 @@ function renderManager() {
     <div class="kpi"><div class="label">Record</div><div class="value">${recordStr(r.total_w,r.total_l,r.total_t)}</div><div class="sub">${fmtPct(r.total_pct)} · playoffs ${recordStr(r.po_w,r.po_l,r.po_t)}</div></div>
     <div class="kpi"><div class="label">Titles</div><div class="value">${r.championships}</div><div class="sub">${r.playoff_appearances} playoff trips</div></div>
     <div class="kpi"><div class="label">PF/G</div><div class="value">${fmtNum(r.total_ppm)}</div><div class="sub">PA/G ${r.total_games ? fmtWeek(r.total_pa / r.total_games) : '—'}</div></div>
-    <div class="kpi" title="${LUCK_TIP}"><div class="label">Luck <span class="info">&#9432;</span></div><div class="value ${(r.luck || 0) > 0.004 ? 'bwd-up' : (r.luck || 0) < -0.004 ? 'bwd-dn' : ''}">${fmtLuck(r.luck)}</div><div class="sub">${r.luck_lucky || 0} lucky wins · ${r.luck_unlucky || 0} unlucky losses</div></div>
+    <div class="kpi"><div class="label">Luck</div><div class="value ${(r.luck || 0) > 0.004 ? 'bwd-up' : (r.luck || 0) < -0.004 ? 'bwd-dn' : ''}">${fmtLuck(r.luck)}</div><div class="sub">${r.luck_lucky || 0} lucky wins · ${r.luck_unlucky || 0} unlucky losses</div></div>
     <div class="kpi"><div class="label">Longest win streak</div><div class="value">${A.streaks[oid].longest_win}</div><div class="sub">${r.trades} trades · ${r.acquisitions} adds</div></div>
   `;
   // Grades strip: draft, trade, start/sit
@@ -3533,7 +3532,7 @@ function renderManager() {
       <td class="num">${recordStr(s.reg_w,s.reg_l,s.reg_t)}</td>
       <td class="num">${recordStr(s.po_w,s.po_l,s.po_t)}</td>
       <td class="num">${recordStr(s.total_w,s.total_l,s.total_t)}</td>
-      <td class="num">${fmtTotal(s.total_pf)}</td><td class="num">${fmtTotal(s.total_pa)}</td>${luckCell(s.luck, s.luck_lucky, s.luck_unlucky)}<td class="num" data-sort="${s.trades}">${s.trades}${countMark(s.year)}</td>
+      <td class="num">${fmtTotal(s.total_pf)}</td><td class="num">${fmtTotal(s.total_pa)}</td>${luckCell(s.luck)}<td class="num" data-sort="${s.trades}">${s.trades}${countMark(s.year)}</td>
       <td>${gradeCell(s.draft_grade)}</td>
       <td>${gradeCell(s.trade_grade)}</td>
       <td>${gradeCell(s.startsit_grade)}</td>
