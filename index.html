@@ -972,12 +972,12 @@ table.bx tr.bench td.sl, table.bx tr.bench td.pl, table.bx tr.bench td.pt { colo
 .rec-card .rc-h { margin-top: 6px; font-size: 13.5px; display:flex; align-items:center; gap: 4px; flex-wrap: wrap; }
 .rec-card .rc-ru { font-size: 12px; color: var(--faint); margin-top: 2px; }
 .rec-card .rc-btn { margin-top: 8px; align-self: flex-start; padding: 5px 10px; font-size: 12px; min-height: 32px; }
-#trades-tbl tr.tr-row { cursor: pointer; }
+#trades-tbl tr.tr-row, #mgr-trades-log tr.tr-row { cursor: pointer; }
 .gr-side { display: inline-flex; align-items: center; gap: 4px; margin-right: 8px; white-space: nowrap; }
 .tr-side-got { display: block; line-height: 1.45; }
 @media (max-width: 480px) { #trades-tbl td.tr-got { flex-basis: 100%; white-space: normal !important; } }
-#trades-tbl tr.tr-row.open td { background: var(--accent-soft); }
-#trades-tbl tr.tr-detail td { background: var(--surface-2); padding: 10px; }
+#trades-tbl tr.tr-row.open td, #mgr-trades-log tr.tr-row.open td { background: var(--accent-soft); }
+#trades-tbl tr.tr-detail td, #mgr-trades-log tr.tr-detail td { background: var(--surface-2); padding: 10px; }
 #trades-tbl td.tr-got { max-width: 420px; color: var(--text-2); font-size: 12.5px; }
 /* Phone trade cards: one hidden-on-desktop cell carries the full two-sided card */
 table tbody tr td.tmc-cell { display: none; }
@@ -1000,7 +1000,7 @@ table tbody tr td.tmc-cell { display: none; }
 @media (max-width: 480px) {
   table.cardify tbody tr td.tmc-cell { display: block; flex: 1 0 100%; min-width: 0; white-space: normal; font-size: 14px; }
   table.cardify tbody tr td.tmc-cell::before { display: none; }
-  #trades-tbl tbody tr.tr-row td:not(.tmc-cell), #mgr-trades-log tbody tr td:not(.tmc-cell) { display: none !important; }
+  #trades-tbl tbody tr.tr-row td:not(.tmc-cell), #mgr-trades-log tbody tr.tr-row td:not(.tmc-cell) { display: none !important; }
 }
 /* Status badges: one set, distinct hues, text >= 4.5:1 on light + dark surfaces.
    Outcome tags (hit / bust / injury) are tinted pills; qualifiers (mixed / partial) are outlines. */
@@ -4295,6 +4295,7 @@ function renderManagerMoves(oid) {
     tradeLine('Best trade', bestTrade) + tradeLine('Worst trade', worstTrade) ||
     '<small class="dim">Not enough graded picks or trades yet.</small>';
 }
+let MGR_TRADE_OPEN = null;   // Manager detail: trade row expanded to the full value card (like the Trades page)
 function renderManagerTrades(oid) {
   const rows = A.trades.filter(t => t.sides.some(s => s.owner_id === oid))
     .sort((a,b) => (b.year - a.year) || (b.week - a.week));
@@ -4308,11 +4309,17 @@ function renderManagerTrades(oid) {
     const sent = me.players_given || others.flatMap(o => o.players_received);
     const ins = tradeInsufficient(t);
     const partnerHtml = t.partner_unknown ? partner : others.map(o => `${mgrLogo(o.manager)}${o.manager}`).join(', ');
-    return `<tr${ins ? ' class="former"' : ''}><td>${t.year}</td><td class="num">${t.week || '—'}</td><td data-sort="${t.significance || 0}">${t.tier ? `<span class="tier tier-${t.tier}">${t.tier}</span>` : ''}${partialMark(t)}</td><td>${partnerHtml}</td>
+    const k = tradeKey(t), open = MGR_TRADE_OPEN === k;
+    return `<tr class="tr-row${ins ? ' former' : ''}${open ? ' open' : ''}" data-k="${k}"><td>${t.year}</td><td class="num">${t.week || '—'}</td><td data-sort="${t.significance || 0}">${t.tier ? `<span class="tier tier-${t.tier}">${t.tier}</span>` : ''}${partialMark(t)}</td><td>${partnerHtml}</td>
       <td>${playerList(me.players_received)}</td><td>${playerList(sent)}</td>
       <td class="num" data-sort="${ins ? 0 : (me.surplus || 0)}">${ins ? '—' : ((me.surplus || 0) >= 0 ? '+' : '') + fmtTotalText(me.surplus || 0)}</td>
-      <td class="num">${ins ? '—' : fmtFixed(me.share*100, 0) + '%'}</td><td>${sideGrade(t, me)}</td><td class="tmc-cell">${tradeMCard(t, oid)}</td></tr>`;
+      <td class="num">${ins ? '—' : fmtFixed(me.share*100, 0) + '%'}</td><td>${sideGrade(t, me)}</td><td class="tmc-cell">${tradeMCard(t, oid)}</td></tr>${open ? `<tr class="tr-detail"><td colspan="9">${tradeCard(t)}</td></tr>` : ''}`;
   }).join('');
+  document.querySelectorAll('#mgr-trades-log tr.tr-row').forEach(r => r.addEventListener('click', e => {
+    if (e.target.closest('a, .tag-link')) return;
+    MGR_TRADE_OPEN = MGR_TRADE_OPEN === r.dataset.k ? null : r.dataset.k;
+    renderManagerTrades(oid);
+  }));
 }
 
 // ------------------------------------------------------------------- PLAYERS
